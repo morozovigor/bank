@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+    php-fpm:
+        build:
+            context: ./docker/images/fpm
+            dockerfile: Dockerfile
+            args:
+                WWWGROUPID: '${WWWGROUPID}'
+                WWWUSERID: '${WWWUSERID}'
+        environment:
+            APP_DEBUG: '${APP_DEBUG}'
+            XDEBUG_MODE: '${XDEBUG_MODE:-off}'
+            XDEBUG_CONFIG: 'client_host=host.docker.internal'
+            PHP_IDE_CONFIG: '${PHP_IDE_CONFIG:-serverName=localhost}'
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        volumes:
+            - ./:/var/www/app
+            - ./docker/images/fpm/custom_php.ini:/usr/local/etc/php/conf.d/custom_php.ini
+        ports:
+            - "${FORWARD_FPM_PORT}:${FPM_PORT}"
+            - "8000:8000"
+        working_dir: /var/www/app
+        depends_on:
+            - postgres
+        networks:
+            - lara-net
+    postgres:
+        image: postgres:15
+        environment:
+            POSTGRES_DB: ${DB_DATABASE}
+            POSTGRES_USER: ${DB_USERNAME}
+            POSTGRES_PASSWORD: ${DB_PASSWORD}
+            POSTGRES_PORT: ${DB_PORT}
+        healthcheck:
+            test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}" ]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        ports:
+            - "${FORWARD_POSTGRES_PORT}:${DB_PORT}"
+        volumes:
+            - ./docker/data/postgres/pg_data:/var/lib/postgresql/data
+            - ./docker/data/postgres/dumps:/tmp/
+        networks:
+            - lara-net
+networks:
+    lara-net:
+        driver: bridge
